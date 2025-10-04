@@ -24,6 +24,24 @@ canvas{display:block;margin:auto;background:#111}
 <button id="startBtn">START</button>
 <div id="ranking"></div>
 <div id="joystick"><div id="stick"></div></div>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js"></script>
+<script>
+/* 🔹 自分のFirebaseプロジェクトの設定に差し替え */
+const firebaseConfig = {
+  apiKey: "AIzaSyDhF1YsbkHWO6yf28Hm2RLRvbSRA-sXXfk",
+  authDomain: "shotgan-pj-by-kj.firebaseapp.com",
+  projectId: "shotgan-pj-by-kj",
+  storageBucket: "shotgan-pj-by-kj.firebasestorage.app",
+  messagingSenderId: "720122994055",
+  appId: "1:720122994055:web:ae891e5b85adb86e65c722"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+</script>
+
 <script>
 const canvas=document.getElementById('gameCanvas');
 const ctx=canvas.getContext('2d');
@@ -34,7 +52,7 @@ let keys={}, moveX=0, moveY=0;
 document.addEventListener('keydown',e=>keys[e.key]=true);
 document.addEventListener('keyup',e=>keys[e.key]=false);
 
-// 仮想スティック（大きめ）
+// 仮想スティック
 const joystick=document.getElementById('joystick');
 const stick=document.getElementById('stick');
 stick.addEventListener('touchmove', e=>{
@@ -43,7 +61,7 @@ stick.addEventListener('touchmove', e=>{
   let dx=touch.clientX-rect.left-70;
   let dy=touch.clientY-rect.top-70;
   const dist=Math.sqrt(dx*dx+dy*dy);
-  const maxDist=60; // 可動範囲を拡大
+  const maxDist=60;
   if(dist>maxDist){ dx=dx/dist*maxDist; dy=dy/dist*maxDist; }
   stick.style.left=55+dx+'px';
   stick.style.top=55+dy+'px';
@@ -52,7 +70,6 @@ stick.addEventListener('touchmove', e=>{
 stick.addEventListener('touchend', e=>{ stick.style.left='55px'; stick.style.top='55px'; moveX=0; moveY=0; });
 
 let frameCount=0, score=0, gameOver=true, difficulty=1;
-let ranking=JSON.parse(localStorage.getItem("ranking")||"[]");
 
 const player={
   x:canvas.width/2,
@@ -73,16 +90,28 @@ const bells=[];
 const enemies=[];
 const enemyBullets=[];
 
-// ランキング表示
-function showRanking(){
-  ranking.sort((a,b)=>b.score-a.score);
-  rankingDiv.innerHTML="<h3>RANKING</h3>"+ranking.slice(0,5).map((r,i)=>`${i+1}. ${r.name} : ${r.score}`).join("<br>");
-  rankingDiv.style.display="block";
+// 🔹 Firebase ランキング保存
+async function addRanking(name,score){
+  await db.collection("ranking").add({
+    name:name,
+    score:score,
+    timestamp:Date.now()
+  });
 }
-// ランキングに追加
-function addRanking(name,score){
-  ranking.push({name,score});
-  localStorage.setItem("ranking",JSON.stringify(ranking));
+
+// 🔹 Firebase ランキング取得
+async function showRanking(){
+  const snapshot = await db.collection("ranking")
+    .orderBy("score","desc")
+    .limit(5)
+    .get();
+  let html="<h3>RANKING</h3>";
+  snapshot.forEach((doc,i)=>{
+    const data=doc.data();
+    html+=`${i+1}. ${data.name} : ${data.score}<br>`;
+  });
+  rankingDiv.innerHTML=html;
+  rankingDiv.style.display="block";
 }
 
 // 初期化
@@ -92,10 +121,10 @@ function initGame(){
   bells.length=0; enemies.length=0; enemyBullets.length=0;
   score=0; frameCount=0; difficulty=1; gameOver=false;
   startBtn.style.display='none';
-  rankingDiv.style.display='none'; // プレイ中は非表示
+  rankingDiv.style.display='none';
 }
 
-// プレイヤー攻撃（常時）
+// 攻撃
 function shoot(){
   if(frameCount%10!==0) return;
   const bulletsToAdd=[];
@@ -118,7 +147,7 @@ function shoot(){
 // 仲間追加
 function addOption(){ if(player.options.length<player.maxOptions) player.options.push({}); }
 
-// ベル取得
+// ベル
 function collectBell(bell){
   switch(bell.type){
     case BELL_TYPES.GREEN:addOption();break;
@@ -130,7 +159,7 @@ function collectBell(bell){
   }
 }
 
-// 敵生成
+// 敵
 function spawnEnemy(){
   const sizeArr=[{size:20,hp:1},{size:35,hp:3},{size:50,hp:5}];
   const type=sizeArr[Math.floor(Math.random()*sizeArr.length)];
@@ -144,8 +173,6 @@ function spawnEnemy(){
     shootTimer:Math.floor(Math.random()*120)
   });
 }
-
-// ベル生成
 function spawnBell(){
   const types=[BELL_TYPES.YELLOW,BELL_TYPES.GREEN,BELL_TYPES.BLUE,BELL_TYPES.RED,BELL_TYPES.ORANGE,BELL_TYPES.WHITE];
   bells.push({x:Math.random()*460+10,y:-10,dy:1,type:types[Math.floor(Math.random()*types.length)]});
@@ -180,10 +207,10 @@ function update(){
 }
 
 // ゲーム終了
-function endGame(){
+async function endGame(){
   gameOver=true; startBtn.style.display='block'; 
   let name=prompt("ゲームオーバー！名前を入力してください","PLAYER");
-  if(name){ addRanking(name,Math.floor(score)); }
+  if(name){ await addRanking(name,Math.floor(score)); }
   showRanking();
 }
 
@@ -199,7 +226,7 @@ function draw(){
     ctx.fillStyle="lime"; let w=Math.max(0,(e.hp/e.maxHp)*40); ctx.fillRect(e.x-20,e.y-e.size/2-8,w,5);
   });
   ctx.fillStyle="orange"; enemyBullets.forEach(b=>ctx.fillRect(b.x-2,b.y-5,4,10));
-  bells.forEach(b=>{ ctx.fillStyle=b.type===BELL_TYPES.GREEN?'green':b.type===BELL_TYPES.BLUE?'cyan':b.type===BELL_TYPES.RED?'red':b.type===BELL_TYPES.ORANGE?'orange':b.type===BELL_TYPES.WHITE?'white':'yellow'; ctx.beginPath(); ctx.arc(b.x,b.y,10,0,Math.PI*2); ctx.fill(); });
+  bells.forEach(b=>{ ctx.fillStyle=b.type==='green'?'green':b.type==='cyan'?'cyan':b.type==='red'?'red':b.type==='orange'?'orange':b.type==='white'?'white':'yellow'; ctx.beginPath(); ctx.arc(b.x,b.y,10,0,Math.PI*2); ctx.fill(); });
   ctx.fillStyle="white"; ctx.font="16px sans-serif";
   ctx.fillText("SCORE:"+Math.floor(score),10,20);
   ctx.fillText("ATK:"+player.attack,10,40);
@@ -207,7 +234,7 @@ function draw(){
   ctx.fillText("FRAME:"+frameCount,10,80);
 }
 
-// メインループ
+// ループ
 function loop(){ update(); draw(); if(!gameOver) requestAnimationFrame(loop); }
 
 startBtn.addEventListener('click',()=>{ initGame(); loop(); });
