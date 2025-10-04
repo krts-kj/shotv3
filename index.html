@@ -92,7 +92,7 @@ const enemyBullets=[];
 
 // 🔹 Firebase ランキング保存
 async function addRanking(name,score){
-  await db.collection("ranking").add({
+  await db.collection("scores").add({
     name:name,
     score:score,
     timestamp:Date.now()
@@ -101,7 +101,7 @@ async function addRanking(name,score){
 
 // 🔹 Firebase ランキング取得
 async function showRanking(){
-  const snapshot = await db.collection("ranking")
+  const snapshot = await db.collection("scores")
     .orderBy("score","desc")
     .limit(5)
     .get();
