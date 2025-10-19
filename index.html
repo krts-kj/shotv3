@@ -68,7 +68,8 @@ async function showRanking(){
   const snapshot = await getDocs(q);
   snapshot.forEach((doc, i)=>{
     const d = doc.data();
-    rankingDiv.innerHTML += `${i+1}. ${d.name} : ${d.score}<br>`;
+    rankingDiv.innerHTML += `${d.name} : ${d.score}<br>`;
+//    rankingDiv.innerHTML += `${i+1}. ${d.name} : ${d.score}<br>`; iの表示を削除
   });
   rankingDiv.style.display = "block";
 }
@@ -291,4 +292,5 @@ showRanking();
 </script>
 </body>
 </html>
+
 
